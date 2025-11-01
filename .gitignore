@@ -1,0 +1,26 @@
+# ===== PYTHON BACKEND =====
+backend/__pycache__/
+backend/.pytest_cache/
+backend/venv/
+backend/.env
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ===== NODE FRONTEND =====
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.DS_Store
+
+# ===== ENV & CREDENTIALS =====
+.env
+.env.local
+*.secret
+*.key
+
+# ===== SYSTEM / OS =====
+.DS_Store
+Thumbs.db
