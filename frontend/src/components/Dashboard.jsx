@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from "react";
+/**
+ * @file Dashboard.jsx
+ * @description Interactive dashboard for visualizing MGNREGA expenditure data.
+ * Enhanced with accurate crore/lakh display and detailed bilingual tooltips.
+ */
+
+import React, { useEffect, useState, useRef } from "react";
 import logo from "../assets/SoochnaMitra_logo.png";
 import api from "../api/client";
 import { motion } from "framer-motion";
-import { Info } from "lucide-react";
+import { MapPin, Info } from "lucide-react";
 import {
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
   CartesianGrid,
@@ -25,41 +31,43 @@ export default function Dashboard() {
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
   const [error, setError] = useState("");
-  const [lastRefreshed, setLastRefreshed] = useState(new Date());
-  const [showInfo, setShowInfo] = useState(null);
   const [geoData, setGeoData] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [activeTooltip, setActiveTooltip] = useState(null);
+  const tooltipRef = useRef(null);
 
-  // Utility functions
-  const toNumber = (v) => {
-    if (v === null || v === undefined || v === "") return 0;
-    const n = Number(v);
-    if (!isNaN(n)) return n;
-    try {
-      return Number(String(v).replace(/,/g, ""));
-    } catch {
-      return 0;
-    }
-  };
-
-  const formatCurrency = (num, fullLabel = false) => {
-    if (!num) return "₹0";
-    let label = "";
-    if (num >= 10000000) label = " Crores";
-    else if (num >= 100000) label = " Lakhs";
-    const formatted = num.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    return fullLabel ? `₹${formatted}${label}` : `₹${formatted}`;
-  };
-
-  // Auto-refresh timer display
+  // close tooltip on outside click
   useEffect(() => {
-    const timer = setInterval(() => setLastRefreshed(new Date()), 60000);
-    return () => clearInterval(timer);
+    const handleClickOutside = (e) => {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
+        setActiveTooltip(null);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // Fetch States
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const toNumber = (v) => {
+    if (v === null || v === undefined || v === "") return 0;
+    const n = Number(String(v).replace(/,/g, ""));
+    return isNaN(n) ? 0 : n;
+  };
+
+  // 🔹 Format currency properly
+  const formatCurrency = (num) => {
+    if (!num) return "₹0";
+    const value = Number(num);
+    if (value >= 100) return `₹ ${(value / 100).toFixed(2)} crore`;
+    return `₹ ${value.toFixed(2)} lakh`;
+  };
+
+  // Load states
   useEffect(() => {
     const fetchStates = async () => {
       setLoadingStates(true);
@@ -75,7 +83,7 @@ export default function Dashboard() {
     fetchStates();
   }, []);
 
-  // Fetch Districts when State changes
+  // Load districts
   useEffect(() => {
     const fetchDistricts = async () => {
       if (!selectedState) {
@@ -84,9 +92,7 @@ export default function Dashboard() {
       }
       setLoadingDistricts(true);
       try {
-        const res = await api.get("/districts", {
-          params: { state: selectedState },
-        });
+        const res = await api.get("/districts", { params: { state: selectedState } });
         setDistricts(res.data.districts || []);
       } catch {
         setError("Failed to load districts.");
@@ -97,83 +103,79 @@ export default function Dashboard() {
     fetchDistricts();
   }, [selectedState]);
 
-  // Detect user location on mount (auto-fetch state + district properly)
-  useEffect(() => {
-    if (!("geolocation" in navigator)) return;
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&zoom=10&format=json`
-          );
-          const data = await res.json();
-
-          // 🧭 Extract clean district name
-          let districtName =
-            data.address.district ||
-            data.address.state_district ||
-            data.address.county ||
-            data.address.city_district ||
-            data.address.suburb ||
-            "";
-
-          // Remove "taluk", "taluka", "tehsil" etc
-          districtName = districtName
-            .replace(/\b(taluk|taluka|tehsil|block|subdivision)\b/gi, "")
-            .trim();
-
-          // 🗺️ Extract state name
-          const stateName =
-            data.address.state ||
-            data.address.region ||
-            data.address.state_name ||
-            "";
-
-          if (districtName && stateName) {
-            const confirm = window.confirm(
-              `We detected your location as ${districtName}, ${stateName}. Do you want to see its MGNREGA data?`
+  // Detect location
+  const detectLocation = async () => {
+    if (!("geolocation" in navigator)) {
+      alert("Your device does not support geolocation.");
+      return;
+    }
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&zoom=10&format=json`
             );
-            if (confirm) {
-              setGeoData({
-                state: stateName.toUpperCase(),
-                district: districtName.toUpperCase(),
-              });
+            const data = await res.json();
+
+            let districtName =
+              data.address.district ||
+              data.address.state_district ||
+              data.address.county ||
+              data.address.city_district ||
+              "";
+            districtName = districtName.replace(/\b(taluk|block|subdivision)\b/gi, "").trim();
+            const stateName =
+              data.address.state || data.address.region || data.address.state_name || "";
+
+            if (districtName && stateName) {
+              const confirm = window.confirm(
+                `Detected location: ${districtName}, ${stateName}. View its MGNREGA data?`
+              );
+              if (confirm) {
+                setGeoData({
+                  state: stateName.toUpperCase(),
+                  district: districtName.toUpperCase(),
+                });
+              }
+              resolve(true);
+            } else {
+              alert("Could not determine district/state from GPS coordinates.");
+              resolve(false);
             }
+          } catch (e) {
+            console.error("Location fetch failed:", e);
+            alert("Failed to detect location. Please try again.");
+            resolve(false);
           }
-        } catch (e) {
-          console.warn("Location fetch failed", e);
-        }
-      },
-      () => console.log("User denied location access")
-    );
+        },
+        (err) => {
+          console.warn("Location permission denied:", err);
+          resolve(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  };
+
+  useEffect(() => {
+    detectLocation();
   }, []);
 
-
-  // Auto-select detected state and district
   useEffect(() => {
-    const autoSelectDetected = async () => {
+    const autoSelect = async () => {
       if (!geoData || states.length === 0) return;
-
-      const matchedState = states.find(
-        (s) => s.toUpperCase() === geoData.state
-      );
+      const matchedState = states.find((s) => s.toUpperCase() === geoData.state);
       if (matchedState) {
         setSelectedState(matchedState);
         setLoadingDistricts(true);
         try {
-          const res = await api.get("/districts", {
-            params: { state: matchedState },
-          });
+          const res = await api.get("/districts", { params: { state: matchedState } });
           const list = res.data.districts || [];
           setDistricts(list);
-
-          // wait a tick to ensure React updates state before matching
           setTimeout(() => {
-            const matchedDistrict = list.find(
-              (d) => d.toUpperCase() === geoData.district
-            );
+            const matchedDistrict = list.find((d) => d.toUpperCase() === geoData.district);
             if (matchedDistrict) {
               setSelectedDistrict(matchedDistrict);
               loadDashboard(matchedState, matchedDistrict);
@@ -186,14 +188,10 @@ export default function Dashboard() {
         }
       }
     };
-    autoSelectDetected();
+    autoSelect();
   }, [geoData, states]);
 
-  // Load dashboard data
-  const loadDashboard = async (
-    stateParam = selectedState,
-    districtParam = selectedDistrict
-  ) => {
+  const loadDashboard = async (stateParam = selectedState, districtParam = selectedDistrict) => {
     if (!stateParam || !districtParam) {
       alert("Please select both State and District.");
       return;
@@ -212,12 +210,7 @@ export default function Dashboard() {
     }
   };
 
-  const monthOrder = [
-    "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
-    "Dec", "Jan", "Feb", "Mar",
-  ];
-
-  // Prepare data for chart
+  const monthOrder = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
   let monthlyData =
     dashboardData?.series?.map((s) => ({
       month: `${s.month.trim()} (${s.fin_year})`,
@@ -227,12 +220,12 @@ export default function Dashboard() {
       Households: toNumber(s.households),
     })) || [];
 
-  // sort + remove duplicates
   monthlyData.sort(
     (a, b) =>
       a.finYear.localeCompare(b.finYear) ||
       monthOrder.indexOf(a.monthName) - monthOrder.indexOf(b.monthName)
   );
+
   const seen = new Set();
   monthlyData = monthlyData.filter((d) => {
     const key = `${d.monthName}-${d.finYear}`;
@@ -240,6 +233,7 @@ export default function Dashboard() {
     seen.add(key);
     return true;
   });
+
   monthlyData = monthlyData.slice(-months);
 
   const kpiExpenditure = toNumber(dashboardData?.kpis?.total_expenditure);
@@ -247,10 +241,9 @@ export default function Dashboard() {
   const kpiPersondays = toNumber(dashboardData?.kpis?.total_persondays);
 
   const summary = dashboardData
-    ? `In the last ${months} months, ${kpiHouseholds.toLocaleString()} families in ${dashboardData.district} collectively received ${formatCurrency(
-        kpiExpenditure,
-        true
-      )} — total money spent by government (not per family).`
+    ? `During this period, ${kpiHouseholds.toLocaleString()} families in ${dashboardData.district} collectively earned wages amounting to ${formatCurrency(
+        kpiExpenditure
+      )} under the MGNREGA scheme.`
     : "";
 
   const kpiInfo = [
@@ -258,27 +251,28 @@ export default function Dashboard() {
       label: "💰 Total Expenditure",
       value: formatCurrency(kpiExpenditure),
       color: "from-indigo-50 to-blue-50",
-      info_en:
-        "Total money spent by the Government (Central + State share) on MGNREGA wages, materials and admin costs.",
-      info_hi:
-        "सरकार द्वारा मजदूरी, सामग्री और प्रशासन पर खर्च की गई कुल राशि (मनरेगा के तहत)।",
+      tooltip: {
+        en: "📘 English:\nTotal expenditure includes government spending (Central + State) on wages, materials, and administrative costs under MGNREGA. Amounts are in lakh rupees; 100 lakh = 1 crore.",
+        hi: "🇮🇳 हिंदी:\nकुल व्यय में मनरेगा के तहत मजदूरी, सामग्री और प्रशासन पर केंद्र व राज्य सरकार द्वारा किया गया खर्च शामिल है। राशि लाख रुपये में है (100 लाख = 1 करोड़)।",
+      },
     },
     {
       label: "🏠 Families Worked",
       value: kpiHouseholds.toLocaleString(),
       color: "from-green-50 to-teal-50",
-      info_en:
-        "Number of families that got at least one person employed under MGNREGA.",
-      info_hi: "जिन परिवारों को इस अवधि में मनरेगा के तहत काम मिला।",
+      tooltip: {
+        en: "📘 English:\nTotal number of unique households that worked under MGNREGA during the selected period.",
+        hi: "🇮🇳 हिंदी:\nचयनित अवधि के दौरान मनरेगा के अंतर्गत कार्य करने वाले कुल परिवारों की संख्या।",
+      },
     },
     {
       label: "👷‍♀️ Person-days",
       value: kpiPersondays.toLocaleString(),
       color: "from-yellow-50 to-orange-50",
-      info_en:
-        "One personday = one person working for one day. Example: 10 people × 10 days = 100 persondays.",
-      info_hi:
-        "‘एक व्यक्ति द्वारा एक दिन का काम’। उदाहरण: 10 लोग × 10 दिन = 100 व्यक्ति-दिवस।",
+      tooltip: {
+        en: "📘 English:\nTotal person-days generated under MGNREGA (1 person working for 1 day = 1 person-day).",
+        hi: "🇮🇳 हिंदी:\nमनरेगा के अंतर्गत सृजित कुल मानव-दिवस (1 व्यक्ति का 1 दिन का कार्य = 1 मानव-दिवस)।",
+      },
     },
   ];
 
@@ -287,21 +281,32 @@ export default function Dashboard() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className="min-h-screen bg-linear-to-br from-indigo-100 via-blue-50 to-sky-100 p-6 flex flex-col items-center"
+      className="min-h-screen bg-linear-to-br from-indigo-100 via-blue-50 to-sky-100 p-6 flex flex-col items-center relative"
     >
-      <div className="flex items-center justify-center gap-4 mb-6">
-        <img
-          src={logo}
-          alt="Soochna Mitra Logo"
-          className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-lg"
-        />
-        <h1 className="text-4xl font-extrabold text-indigo-700 text-center">
-          Soochna Mitra Dashboard
-        </h1>
+      {/* Header */}
+      <div className="w-full flex justify-center mb-6">
+        <div className="flex items-center justify-between w-full max-w-4xl px-4">
+          <img src={logo} alt="Soochna Mitra Logo" className="w-10 h-10 sm:w-12 sm:h-12 drop-shadow-lg" />
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-indigo-700 text-center flex-1">
+            Soochna Mitra Dashboard
+          </h1>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={detectLocation}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 sm:p-3 rounded-full shadow-lg flex items-center justify-center"
+            title="Detect My Location"
+          >
+            <MapPin size={22} />
+          </motion.button>
+        </div>
       </div>
 
-      {/* Dropdowns */}
-      <div className="flex flex-wrap justify-center gap-4 mb-4">
+      {/* Filters */}
+      <div
+        className={`${
+          isMobile ? "flex flex-col items-center gap-3 w-full max-w-xs" : "flex flex-wrap justify-center gap-4"
+        } mb-6`}
+      >
         <select
           className="border rounded-lg p-2 w-56"
           value={selectedState}
@@ -311,9 +316,7 @@ export default function Dashboard() {
           }}
           disabled={loadingStates}
         >
-          <option value="">
-            {loadingStates ? "Loading states..." : "Select State"}
-          </option>
+          <option value="">{loadingStates ? "Loading states..." : "Select State"}</option>
           {states.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -364,39 +367,38 @@ export default function Dashboard() {
         </motion.button>
       </div>
 
-      {/* Dashboard */}
-      {dashboardData && !loading && (
+      {/* Results */}
+      {dashboardData && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="max-w-4xl w-full bg-white/80 p-6 mt-4 rounded-2xl shadow"
         >
-          <h2 className="text-2xl font-semibold text-indigo-700 mb-2 text-center">
+          <h2 className="text-2xl font-semibold text-indigo-700 mb-4 text-center">
             {dashboardData.district}, {dashboardData.state}
           </h2>
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div ref={tooltipRef} className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 relative">
             {kpiInfo.map((item, i) => (
               <div
                 key={i}
-                className={`relative p-4 rounded-xl bg-linear-to-br ${item.color} shadow text-center`}
+                className={`relative p-4 rounded-xl bg-linear-to-br ${item.color} shadow text-center cursor-pointer`}
+                onClick={() => setActiveTooltip(activeTooltip === i ? null : i)}
+                onMouseEnter={() => setActiveTooltip(i)}
+                onMouseLeave={() => setActiveTooltip(null)}
               >
-                <h3 className="font-semibold text-gray-700 flex items-center justify-center gap-2">
-                  {item.label}
-                  <Info
-                    size={16}
-                    className="text-gray-500 cursor-pointer hover:text-indigo-600"
-                    onClick={() => setShowInfo(showInfo === i ? null : i)}
-                  />
-                </h3>
+                <div className="flex justify-center items-center gap-1 mb-1">
+                  <h3 className="font-semibold text-gray-700">{item.label}</h3>
+                  <Info size={16} className="text-gray-500" />
+                </div>
                 <p className="text-xl font-bold mt-1">{item.value}</p>
-                {showInfo === i && (
-                  <div className="absolute z-10 top-full left-1/2 -translate-x-1/2 mt-2 bg-white shadow-lg border p-3 rounded-xl w-64 text-sm text-gray-700">
-                    <p className="font-semibold">📘 English:</p>
-                    <p>{item.info_en}</p>
-                    <p className="font-semibold mt-2">🇮🇳 हिंदी:</p>
-                    <p>{item.info_hi}</p>
+
+                {activeTooltip === i && (
+                  <div className="absolute z-20 top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-white text-gray-800 border rounded-lg shadow-lg p-3 text-sm whitespace-pre-wrap">
+                    {item.tooltip.en}
+                    {"\n\n"}
+                    {item.tooltip.hi}
                   </div>
                 )}
               </div>
@@ -410,37 +412,16 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip
-                  formatter={(value, name) => [
-                    name === "₹ Expenditure"
-                      ? formatCurrency(value, true)
-                      : value.toLocaleString(),
-                    name,
-                  ]}
-                />
+                <RechartsTooltip />
                 <Legend />
                 <Bar dataKey="Expenditure" fill="#4f46e5" name="₹ Expenditure" />
-                <Bar
-                  dataKey="Households"
-                  fill="#f59e0b"
-                  name="Families Worked"
-                />
+                <Bar dataKey="Households" fill="#f59e0b" name="Families Worked" />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
+          {/* Summary */}
           <p className="text-center text-gray-700 font-medium">{summary}</p>
-          {dashboardData.from_cache && (
-            <p className="text-center text-sm text-gray-500 mt-2">
-              ⚡ Cached Data (Last backend update:{" "}
-              {new Date(dashboardData.last_updated).toLocaleString()})
-            </p>
-          )}
-
-          <p className="mt-4 text-gray-500 text-sm text-center">
-            Records: {dashboardData.kpis.records_count} • Last refreshed:{" "}
-            {lastRefreshed.toLocaleTimeString()}
-          </p>
         </motion.div>
       )}
     </motion.div>
