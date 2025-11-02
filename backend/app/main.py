@@ -4,22 +4,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
 from app.db.database import Base, engine
 from app.models.dataset import RawSnapshot, DistrictMonthly
-
-# Create tables on startup (safe, idempotent)
-Base.metadata.create_all(bind=engine)
+from sqlalchemy.exc import OperationalError
 
 app = FastAPI(title="SoochnaMitra API", version="1.0")
 
+# Try to create tables (safe)
+try:
+    Base.metadata.create_all(bind=engine)
+except OperationalError as e:
+    print("❌ Database connection failed:", e)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # in prod restrict to your front-end domain
+    allow_origins=["*"],  # ⚠️ In production, restrict to your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Include your API routes
 app.include_router(api_router)
 
+# Root route
 @app.get("/")
 def root():
-    return {"message": "SoochnaMitra API running"}
+    return {"message": "✅ SoochnaMitra backend is running successfully!"}

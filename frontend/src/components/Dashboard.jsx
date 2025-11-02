@@ -97,7 +97,7 @@ export default function Dashboard() {
     fetchDistricts();
   }, [selectedState]);
 
-  // Detect user location on mount
+  // Detect user location on mount (auto-fetch state + district properly)
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
 
@@ -106,15 +106,30 @@ export default function Dashboard() {
         try {
           const { latitude, longitude } = pos.coords;
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&zoom=10&format=json`
           );
           const data = await res.json();
-          const districtName =
+
+          // 🧭 Extract clean district name
+          let districtName =
             data.address.district ||
-            data.address.county ||
             data.address.state_district ||
+            data.address.county ||
+            data.address.city_district ||
+            data.address.suburb ||
             "";
-          const stateName = data.address.state || data.address.region || "";
+
+          // Remove "taluk", "taluka", "tehsil" etc
+          districtName = districtName
+            .replace(/\b(taluk|taluka|tehsil|block|subdivision)\b/gi, "")
+            .trim();
+
+          // 🗺️ Extract state name
+          const stateName =
+            data.address.state ||
+            data.address.region ||
+            data.address.state_name ||
+            "";
 
           if (districtName && stateName) {
             const confirm = window.confirm(
@@ -134,6 +149,7 @@ export default function Dashboard() {
       () => console.log("User denied location access")
     );
   }, []);
+
 
   // Auto-select detected state and district
   useEffect(() => {
@@ -256,7 +272,7 @@ export default function Dashboard() {
       info_hi: "जिन परिवारों को इस अवधि में मनरेगा के तहत काम मिला।",
     },
     {
-      label: "👷‍♀️ Persondays",
+      label: "👷‍♀️ Person-days",
       value: kpiPersondays.toLocaleString(),
       color: "from-yellow-50 to-orange-50",
       info_en:
