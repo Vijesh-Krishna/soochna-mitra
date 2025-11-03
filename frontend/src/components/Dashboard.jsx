@@ -1,7 +1,5 @@
 /**
- * @file Dashboard.jsx
- * @description Interactive dashboard for visualizing MGNREGA expenditure data.
- * Enhanced with accurate crore/lakh display and detailed bilingual tooltips.
+ * Dashboard.jsx — improved mobile geolocation + always-available state dropdown
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -32,11 +30,14 @@ export default function Dashboard() {
   const [loadingDistricts, setLoadingDistricts] = useState(false);
   const [error, setError] = useState("");
   const [geoData, setGeoData] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const tooltipRef = useRef(null);
 
-  // close tooltip on outside click
+  // prevent double-calling detectLocation on touch+click
+  const detectLockRef = useRef(false);
+
+  // Close tooltip on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
@@ -47,6 +48,7 @@ export default function Dashboard() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
+  // Responsive detection
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
@@ -59,31 +61,38 @@ export default function Dashboard() {
     return isNaN(n) ? 0 : n;
   };
 
-  // 🔹 Format currency properly
+  // Format currency assuming input is in lakh-numbers (like your code)
+  // output as "₹ X.XX lakh" or "₹ Y.YY crore"
   const formatCurrency = (num) => {
     if (!num) return "₹0";
     const value = Number(num);
+    if (isNaN(value)) return "₹0";
+    // value is in lakhs; 100 lakh = 1 crore
     if (value >= 100) return `₹ ${(value / 100).toFixed(2)} crore`;
     return `₹ ${value.toFixed(2)} lakh`;
   };
 
-  // Load states
+  // Fetch states (called on mount and retry)
+  const fetchStates = async () => {
+    setLoadingStates(true);
+    setError("");
+    try {
+      const res = await api.get("/states");
+      setStates(res.data.states || []);
+    } catch (e) {
+      console.error("Failed to load states:", e);
+      setError("Failed to load states. Tap retry.");
+      setStates([]); // keep empty but show retry
+    } finally {
+      setLoadingStates(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStates = async () => {
-      setLoadingStates(true);
-      try {
-        const res = await api.get("/states");
-        setStates(res.data.states || []);
-      } catch {
-        setError("Failed to load states.");
-      } finally {
-        setLoadingStates(false);
-      }
-    };
     fetchStates();
   }, []);
 
-  // Load districts
+  // Fetch districts when a state is chosen
   useEffect(() => {
     const fetchDistricts = async () => {
       if (!selectedState) {
@@ -94,8 +103,10 @@ export default function Dashboard() {
       try {
         const res = await api.get("/districts", { params: { state: selectedState } });
         setDistricts(res.data.districts || []);
-      } catch {
+      } catch (e) {
+        console.error("Failed to load districts:", e);
         setError("Failed to load districts.");
+        setDistricts([]);
       } finally {
         setLoadingDistricts(false);
       }
@@ -103,92 +114,132 @@ export default function Dashboard() {
     fetchDistricts();
   }, [selectedState]);
 
-  // Detect location
+  // Detect location only when user triggers (not on mount)
   const detectLocation = async () => {
-    if (!("geolocation" in navigator)) {
-      alert("Your device does not support geolocation.");
-      return;
-    }
-    return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { latitude, longitude } = pos.coords;
-            const res = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&zoom=10&format=json`
-            );
-            const data = await res.json();
+    if (detectLockRef.current) return;
+    detectLockRef.current = true;
+    try {
+      if (!("geolocation" in navigator)) {
+        alert("Your device does not support geolocation.");
+        return;
+      }
 
-            let districtName =
-              data.address.district ||
-              data.address.state_district ||
-              data.address.county ||
-              data.address.city_district ||
-              "";
-            districtName = districtName.replace(/\b(taluk|block|subdivision)\b/gi, "").trim();
-            const stateName =
-              data.address.state || data.address.region || data.address.state_name || "";
+      // Ask for permission and get coords
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+      });
 
-            if (districtName && stateName) {
-              const confirm = window.confirm(
-                `Detected location: ${districtName}, ${stateName}. View its MGNREGA data?`
-              );
-              if (confirm) {
-                setGeoData({
-                  state: stateName.toUpperCase(),
-                  district: districtName.toUpperCase(),
-                });
-              }
-              resolve(true);
-            } else {
-              alert("Could not determine district/state from GPS coordinates.");
-              resolve(false);
-            }
-          } catch (e) {
-            console.error("Location fetch failed:", e);
-            alert("Failed to detect location. Please try again.");
-            resolve(false);
-          }
-        },
-        (err) => {
-          console.warn("Location permission denied:", err);
-          resolve(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
+      const { latitude, longitude } = pos.coords;
+
+      // Reverse geocode via Nominatim (public) — keep small zoom so we get district/state
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&zoom=10&format=json`
       );
-    });
-  };
+      const data = await r.json();
 
-  useEffect(() => {
-    detectLocation();
-  }, []);
+      let districtName =
+        data?.address?.district ||
+        data?.address?.state_district ||
+        data?.address?.county ||
+        data?.address?.city_district ||
+        "";
+      districtName = String(districtName).replace(/\b(taluk|block|subdivision)\b/gi, "").trim();
 
-  useEffect(() => {
-    const autoSelect = async () => {
-      if (!geoData || states.length === 0) return;
-      const matchedState = states.find((s) => s.toUpperCase() === geoData.state);
-      if (matchedState) {
-        setSelectedState(matchedState);
-        setLoadingDistricts(true);
-        try {
-          const res = await api.get("/districts", { params: { state: matchedState } });
-          const list = res.data.districts || [];
-          setDistricts(list);
-          setTimeout(() => {
-            const matchedDistrict = list.find((d) => d.toUpperCase() === geoData.district);
+      const stateName = data?.address?.state || data?.address?.region || data?.address?.state_name || "";
+
+      if (!districtName || !stateName) {
+        alert("Could not determine district/state from GPS coordinates. Please select manually.");
+        return;
+      }
+
+      // Ask user if they want to view district. This explicit user action helps mobile browsers.
+      const accept = window.confirm(`Detected location: ${districtName}, ${stateName}. View this district's data?`);
+      if (accept) {
+        const stateUpper = String(stateName).toUpperCase();
+        const districtUpper = String(districtName).toUpperCase();
+        setGeoData({ state: stateUpper, district: districtUpper });
+
+        // Try auto-matching with loaded states (if loaded)
+        // If states are not loaded yet, autoSelect effect will handle it when states arrive
+        const matchedState = states.find((s) => String(s).toUpperCase() === stateUpper);
+        if (matchedState) {
+          setSelectedState(matchedState);
+          // fetch districts and auto select district if available
+          setLoadingDistricts(true);
+          try {
+            const res = await api.get("/districts", { params: { state: matchedState } });
+            const list = res.data.districts || [];
+            setDistricts(list);
+            const matchedDistrict = list.find((d) => String(d).toUpperCase() === districtUpper);
             if (matchedDistrict) {
               setSelectedDistrict(matchedDistrict);
-              loadDashboard(matchedState, matchedDistrict);
+              // load dashboard
+              await loadDashboard(matchedState, matchedDistrict);
+            } else {
+              // let user pick district
+              alert("Could not auto-match district name exactly — please pick your district from the dropdown.");
             }
-          }, 500);
-        } catch {
-          setError("Failed to auto-load districts for detected state.");
-        } finally {
-          setLoadingDistricts(false);
+          } catch (e) {
+            console.error("Failed to auto-load districts for detected state:", e);
+            setError("Failed to auto-load districts for detected state.");
+          } finally {
+            setLoadingDistricts(false);
+          }
+        } else {
+          // If we don't have that state in our states list, inform the user and let them pick manually
+          alert(
+            `Detected state (${stateName}) is not in the available list. Please select your state from the dropdown.`
+          );
         }
+      } else {
+        // user clicked no — do nothing (user can manually select)
+      }
+    } catch (err) {
+      console.warn("Location detection failed:", err);
+      if (err && err.code === 1) {
+        // PERMISSION_DENIED
+        alert("Location permission denied. Please allow location access or select your state/district manually.");
+      } else if (err && err.code === 2) {
+        alert("Position unavailable. Try again or select manually.");
+      } else {
+        alert("Failed to detect location. Please select your state/district manually.");
+      }
+    } finally {
+      // small timeout to avoid double touch/click triggers
+      setTimeout(() => {
+        detectLockRef.current = false;
+      }, 800);
+    }
+  };
+
+  // If geoData was set while states were not available yet, attempt auto-select on states arrival
+  useEffect(() => {
+    const tryAutoSelect = async () => {
+      if (!geoData || states.length === 0) return;
+      const matchedState = states.find((s) => String(s).toUpperCase() === geoData.state);
+      if (!matchedState) return;
+      setSelectedState(matchedState);
+      setLoadingDistricts(true);
+      try {
+        const res = await api.get("/districts", { params: { state: matchedState } });
+        const list = res.data.districts || [];
+        setDistricts(list);
+        const matchedDistrict = list.find((d) => String(d).toUpperCase() === geoData.district);
+        if (matchedDistrict) {
+          setSelectedDistrict(matchedDistrict);
+          await loadDashboard(matchedState, matchedDistrict);
+        }
+      } catch (e) {
+        console.error("Auto select after geoData failed:", e);
+      } finally {
+        setLoadingDistricts(false);
       }
     };
-    autoSelect();
+    tryAutoSelect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geoData, states]);
 
   const loadDashboard = async (stateParam = selectedState, districtParam = selectedDistrict) => {
@@ -197,14 +248,16 @@ export default function Dashboard() {
       return;
     }
     setLoading(true);
+    setError("");
     try {
       const res = await api.get("/dashboard", {
         params: { state: stateParam, district: districtParam, months },
       });
       setDashboardData(res.data);
-      setError("");
-    } catch {
+    } catch (e) {
+      console.error("Failed to load dashboard:", e);
       setError("Failed to load dashboard data.");
+      setDashboardData(null);
     } finally {
       setLoading(false);
     }
@@ -213,8 +266,8 @@ export default function Dashboard() {
   const monthOrder = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
   let monthlyData =
     dashboardData?.series?.map((s) => ({
-      month: `${s.month.trim()} (${s.fin_year})`,
-      monthName: s.month.trim(),
+      month: `${String(s.month || "").trim()} (${s.fin_year || ""})`,
+      monthName: String(s.month || "").trim(),
       finYear: s.fin_year,
       Expenditure: toNumber(s.expenditure),
       Households: toNumber(s.households),
@@ -222,7 +275,7 @@ export default function Dashboard() {
 
   monthlyData.sort(
     (a, b) =>
-      a.finYear.localeCompare(b.finYear) ||
+      (a.finYear || "").localeCompare(b.finYear || "") ||
       monthOrder.indexOf(a.monthName) - monthOrder.indexOf(b.monthName)
   );
 
@@ -252,8 +305,9 @@ export default function Dashboard() {
       value: formatCurrency(kpiExpenditure),
       color: "from-indigo-50 to-blue-50",
       tooltip: {
-        en: "📘 English:\nTotal expenditure includes government spending (Central + State) on wages, materials, and administrative costs under MGNREGA. Amounts are in lakh rupees; 100 lakh = 1 crore.",
-        hi: "🇮🇳 हिंदी:\nकुल व्यय में मनरेगा के तहत मजदूरी, सामग्री और प्रशासन पर केंद्र व राज्य सरकार द्वारा किया गया खर्च शामिल है। राशि लाख रुपये में है (100 लाख = 1 करोड़)।",
+        en:
+          "📘 English:\nTotal expenditure includes government spending (Central + State) on wages, materials, and administrative costs under MGNREGA. Amounts are in lakh rupees; 100 lakh = 1 crore.",
+        hi: "🇮🇳 हिंदी:\nकुल व्यय में मनरेगा के तहत मजदूरी, सामग्री और प्रशासन पर किया गया खर्च शामिल है। राशि लाख रुपये में है (100 लाख = 1 करोड़)।",
       },
     },
     {
@@ -261,8 +315,8 @@ export default function Dashboard() {
       value: kpiHouseholds.toLocaleString(),
       color: "from-green-50 to-teal-50",
       tooltip: {
-        en: "📘 English:\nTotal number of unique households that worked under MGNREGA during the selected period.",
-        hi: "🇮🇳 हिंदी:\nचयनित अवधि के दौरान मनरेगा के अंतर्गत कार्य करने वाले कुल परिवारों की संख्या।",
+        en: "📘 English:\nNumber of households that worked under MGNREGA during the selected period.",
+        hi: "🇮🇳 हिंदी:\nचयनित अवधि में मनरेगा के अंतर्गत काम करने वाले परिवारों की संख्या।",
       },
     },
     {
@@ -270,8 +324,8 @@ export default function Dashboard() {
       value: kpiPersondays.toLocaleString(),
       color: "from-yellow-50 to-orange-50",
       tooltip: {
-        en: "📘 English:\nTotal person-days generated under MGNREGA (1 person working for 1 day = 1 person-day).",
-        hi: "🇮🇳 हिंदी:\nमनरेगा के अंतर्गत सृजित कुल मानव-दिवस (1 व्यक्ति का 1 दिन का कार्य = 1 मानव-दिवस)।",
+        en: "📘 English:\nTotal person-days generated (1 person × 1 day = 1 person-day).",
+        hi: "🇮🇳 हिंदी:\nकुल मानव-दिवस (1 व्यक्ति × 1 दिन = 1 मानव-दिवस)।",
       },
     },
   ];
@@ -293,6 +347,7 @@ export default function Dashboard() {
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={detectLocation}
+            onTouchStart={detectLocation}
             className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 sm:p-3 rounded-full shadow-lg flex items-center justify-center"
             title="Detect My Location"
           >
@@ -307,22 +362,37 @@ export default function Dashboard() {
           isMobile ? "flex flex-col items-center gap-3 w-full max-w-xs" : "flex flex-wrap justify-center gap-4"
         } mb-6`}
       >
-        <select
-          className="border rounded-lg p-2 w-56"
-          value={selectedState}
-          onChange={(e) => {
-            setSelectedState(e.target.value);
-            setSelectedDistrict("");
-          }}
-          disabled={loadingStates}
-        >
-          <option value="">{loadingStates ? "Loading states..." : "Select State"}</option>
-          {states.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            className="border rounded-lg p-2 w-56"
+            value={selectedState}
+            onChange={(e) => {
+              setSelectedState(e.target.value);
+              setSelectedDistrict("");
+            }}
+            disabled={loadingStates}
+          >
+            <option value="">{loadingStates ? "Loading states..." : "Select State"}</option>
+            {states.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+
+          {/* If states failed to load, show retry */}
+          {states.length === 0 && !loadingStates && (
+            <div className="flex flex-col">
+              <span className="text-sm text-red-600">{error || "No states loaded."}</span>
+              <button
+                onClick={fetchStates}
+                className="text-sm bg-indigo-600 text-white px-2 py-1 rounded ml-2 hover:bg-indigo-700"
+              >
+                Retry states
+              </button>
+            </div>
+          )}
+        </div>
 
         <select
           className="border rounded-lg p-2 w-56"
@@ -331,11 +401,7 @@ export default function Dashboard() {
           disabled={!selectedState || loadingDistricts}
         >
           <option value="">
-            {loadingDistricts
-              ? "Loading districts..."
-              : selectedState
-              ? "Select District"
-              : "Select State first"}
+            {loadingDistricts ? "Loading districts..." : selectedState ? "Select District" : "Select State first"}
           </option>
           {districts.map((d) => (
             <option key={d} value={d}>
@@ -357,9 +423,7 @@ export default function Dashboard() {
 
         <motion.button
           whileTap={{ scale: 0.95 }}
-          className={`px-6 py-2 rounded-lg text-white ${
-            loading ? "bg-gray-400" : "bg-indigo-600 hover:bg-indigo-700"
-          }`}
+          className={`px-6 py-2 rounded-lg text-white ${loading ? "bg-gray-400" : "bg-indigo-600 hover:bg-indigo-700"}`}
           onClick={() => loadDashboard()}
           disabled={loading}
         >
@@ -369,11 +433,7 @@ export default function Dashboard() {
 
       {/* Results */}
       {dashboardData && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="max-w-4xl w-full bg-white/80 p-6 mt-4 rounded-2xl shadow"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl w-full bg-white/80 p-6 mt-4 rounded-2xl shadow">
           <h2 className="text-2xl font-semibold text-indigo-700 mb-4 text-center">
             {dashboardData.district}, {dashboardData.state}
           </h2>
@@ -423,6 +483,13 @@ export default function Dashboard() {
           {/* Summary */}
           <p className="text-center text-gray-700 font-medium">{summary}</p>
         </motion.div>
+      )}
+
+      {/* Show error if present and no dashboard */}
+      {!dashboardData && error && (
+        <div className="mt-6 bg-red-50 border border-red-200 text-red-700 px-6 py-3 rounded-lg shadow max-w-lg text-center">
+          ⚠️ {error}
+        </div>
       )}
     </motion.div>
   );
