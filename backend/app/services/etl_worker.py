@@ -1,4 +1,3 @@
-# backend/app/services/etl_worker.py
 import logging
 from app.services.data_fetcher import fetch_dataset
 from app.db.database import SessionLocal, engine
@@ -54,13 +53,13 @@ def upsert_from_record(session, rec):
     ))
 
 def run_etl_once(limit=5000):
-    logger.info("🚀 Starting ETL fetch")
+    logger.info("Starting ETL fetch")
     records = fetch_dataset(limit=limit)
     if not records:
-        logger.warning("⚠️ No records fetched from API.")
+        logger.warning("No records fetched from API.")
         return
 
-    logger.info(f"✅ Fetched {len(records)} records")
+    logger.info(f"Fetched {len(records)} records")
     session = SessionLocal()
     try:
         session.add(RawSnapshot(dataset="mgnrega", payload={"records": records}))
@@ -73,7 +72,7 @@ def run_etl_once(limit=5000):
                 logger.exception("Failed to upsert record")
 
         session.commit()
-        logger.info(f"✅ ETL complete: {len(records)} records processed")
+        logger.info(f"ETL complete: {len(records)} records processed")
     except SQLAlchemyError:
         session.rollback()
         logger.exception("DB error during ETL")

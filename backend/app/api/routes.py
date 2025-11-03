@@ -1,40 +1,86 @@
-# backend/app/api/routes.py
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime
 from app.services.data_fetcher import fetch_dataset
 from app.services.etl_worker import run_etl_once
 from app.core.config import settings
-import redis, json
+import redis, json, time
 
 router = APIRouter()
 
-# ✅ Initialize Redis client safely
-redis_client = None
-try:
-    redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
-    redis_client.ping()
-    print("✅ Redis connected successfully")
-except Exception as e:
-    print(f"⚠️ Redis unavailable, caching disabled: {e}")
-    redis_client = None
+# Redis initialization with auto-reconnect + retry logic
+def get_redis_client():
+    """Safely create a new Redis client with retry."""
+    try:
+        client = redis.Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=5,
+        )
+        client.ping()
+        print("Redis connected successfully")
+        return client
+    except Exception as e:
+        print(f"Redis unavailable: {e}")
+        return None
+
+redis_client = get_redis_client()
+
+def safe_redis_get(key):
+    """Safe Redis GET with reconnect fallback"""
+    global redis_client
+    if not redis_client:
+        redis_client = get_redis_client()
+        if not redis_client:
+            return None
+    try:
+        return redis_client.get(key)
+    except Exception as e:
+        print(f"Redis get() failed: {e}")
+        redis_client = None
+        return None
+
+def safe_redis_setex(key, ttl, value):
+    """Safe Redis SETEX with reconnect fallback"""
+    global redis_client
+    if not redis_client:
+        redis_client = get_redis_client()
+        if not redis_client:
+            return
+    try:
+        redis_client.setex(key, ttl, value)
+    except Exception as e:
+        print(f"Redis setex() failed: {e}")
+        redis_client = None
+
+# Local in-memory fallback cache
+_fallback_cache = {}
+
+def fallback_get(key):
+    entry = _fallback_cache.get(key)
+    if entry and time.time() - entry["time"] < 600:  # valid for 10 mins
+        return entry["value"]
+    return None
+
+def fallback_set(key, value):
+    _fallback_cache[key] = {"value": value, "time": time.time()}
 
 
+# ---------- HEALTH ----------
 @router.get("/api/v1/health")
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
 
+# ---------- HELPERS ----------
 def _safe_float(v):
     try:
         if v is None:
             return 0.0
-        # Accept strings with commas
         if isinstance(v, str):
             v = v.replace(",", "").strip()
         return float(v)
     except Exception:
         return 0.0
-
 
 def _safe_int(v):
     try:
@@ -47,37 +93,40 @@ def _safe_int(v):
         return 0
 
 
-# ✅ States
+# ---------- STATES ----------
 @router.get("/api/v1/states")
 def list_states():
     """Return list of unique states (cached 24h)"""
     cache_key = "states:list"
 
-    if redis_client:
-        cached = redis_client.get(cache_key)
-        if cached:
-            return {"states": json.loads(cached), "source": "cache"}
+    if cached := safe_redis_get(cache_key):
+        return {"states": json.loads(cached), "source": "cache"}
+
+    if f := fallback_get(cache_key):
+        return {"states": f, "source": "memory"}
 
     records = fetch_dataset(limit=5000)
     if not records:
         raise HTTPException(status_code=404, detail="No data found")
 
     states = sorted({r.get("state_name") for r in records if r.get("state_name")})
-    if redis_client:
-        redis_client.setex(cache_key, 86400, json.dumps(states))
+    safe_redis_setex(cache_key, 86400, json.dumps(states))
+    fallback_set(cache_key, states)
+
     return {"states": states, "source": "live"}
 
 
-# ✅ Districts
+# ---------- DISTRICTS ----------
 @router.get("/api/v1/districts")
 def list_districts(state: str = Query(..., min_length=2)):
     """Return list of districts for a given state"""
     cache_key = f"districts:{state.upper()}"
 
-    if redis_client:
-        cached = redis_client.get(cache_key)
-        if cached:
-            return {"state": state, "districts": json.loads(cached), "source": "cache"}
+    if cached := safe_redis_get(cache_key):
+        return {"state": state, "districts": json.loads(cached), "source": "cache"}
+
+    if f := fallback_get(cache_key):
+        return {"state": state, "districts": f, "source": "memory"}
 
     records = fetch_dataset(limit=5000)
     filtered = [
@@ -89,28 +138,33 @@ def list_districts(state: str = Query(..., min_length=2)):
         raise HTTPException(status_code=404, detail="No districts found for this state")
 
     districts = sorted({r.get("district_name") for r in filtered if r.get("district_name")})
-    if redis_client:
-        redis_client.setex(cache_key, 86400, json.dumps(districts))
+    safe_redis_setex(cache_key, 86400, json.dumps(districts))
+    fallback_set(cache_key, districts)
+
     return {"state": state, "districts": districts, "source": "live"}
 
 
-# ✅ Dashboard
+# ---------- DASHBOARD ----------
 @router.get("/api/v1/dashboard")
-def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., min_length=2), months: int = 12):
+def dashboard(
+    state: str = Query(..., min_length=2),
+    district: str = Query(..., min_length=2),
+    months: int = 12
+):
     """Aggregates and caches dashboard KPIs"""
     cache_key = f"dashboard:{state}:{district}:{months}"
 
-    # Try cache first
-    if redis_client:
-        try:
-            cached = redis_client.get(cache_key)
-            if cached:
-                payload = json.loads(cached)
-                payload["source"] = "cache"
-                payload["from_cache"] = True
-                return payload
-        except Exception:
-            pass
+    if cached := safe_redis_get(cache_key):
+        payload = json.loads(cached)
+        payload["source"] = "cache"
+        payload["from_cache"] = True
+        return payload
+
+    if f := fallback_get(cache_key):
+        payload = f
+        payload["source"] = "memory"
+        payload["from_cache"] = True
+        return payload
 
     records = fetch_dataset(limit=5000)
 
@@ -123,17 +177,15 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
     if not filtered:
         raise HTTPException(status_code=404, detail="No data for this district/state")
 
-    # sort by fin_year & month if possible (attempt to keep chronological)
+    # Sorting
     try:
         def month_key(r):
-            # month may be names like "Dec" — we cannot fully sort correctly without mapping,
-            # but we'll return the raw fin_year+month string to get a stable order.
             return (r.get("fin_year") or "", r.get("month") or "")
         filtered = sorted(filtered, key=month_key)
     except Exception:
         pass
 
-    # Aggregate KPIs (use robust key checks)
+    # KPI aggregation
     total_exp = sum(
         _safe_float(
             r.get("total_expenditure")
@@ -141,8 +193,7 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
             or r.get("Wages")
             or r.get("total_expenditure_in_rs")
             or 0
-        )
-        for r in filtered
+        ) for r in filtered
     )
     total_households = sum(
         _safe_int(
@@ -150,8 +201,7 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
             or r.get("Total_Households_Worked")
             or r.get("Total_Households")
             or 0
-        )
-        for r in filtered
+        ) for r in filtered
     )
     total_persondays = sum(
         _safe_int(
@@ -159,8 +209,7 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
             or r.get("Persondays_of_Central_Liability_so_far")
             or r.get("Persondays")
             or 0
-        )
-        for r in filtered
+        ) for r in filtered
     )
 
     kpis = {
@@ -170,12 +219,10 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
         "records_count": len(filtered),
     }
 
-    # Build normalized series with numeric fields for frontend charts
     series = []
     for r in filtered:
         fin_year = r.get("fin_year") or r.get("financial_year") or ""
         month = r.get("month") or ""
-        # get numeric fields with many possible keys
         expenditure = _safe_float(
             r.get("total_expenditure")
             or r.get("Total_Exp")
@@ -195,7 +242,6 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
             or r.get("Persondays")
             or 0
         )
-
         series.append({
             "fin_year": fin_year,
             "month": month,
@@ -214,23 +260,6 @@ def dashboard(state: str = Query(..., min_length=2), district: str = Query(..., 
         "from_cache": False
     }
 
-    # Cache it for 10 minutes
-    if redis_client:
-        try:
-            redis_client.setex(cache_key, 600, json.dumps(payload))
-        except Exception:
-            pass
-
+    safe_redis_setex(cache_key, 600, json.dumps(payload))
+    fallback_set(cache_key, payload)
     return payload
-
-
-# ✅ Refresh Endpoint
-@router.post("/api/v1/refresh")
-def refresh_data():
-    if redis_client:
-        try:
-            redis_client.flushdb()
-        except Exception:
-            pass
-    run_etl_once(limit=5000)
-    return {"message": "ETL refresh complete.", "timestamp": datetime.utcnow().isoformat()}

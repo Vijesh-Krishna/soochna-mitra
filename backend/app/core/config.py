@@ -1,9 +1,8 @@
-# backend/app/core/config.py
 import os
 from dotenv import load_dotenv, find_dotenv
 from functools import lru_cache
 
-# Load .env file
+# Load environment
 load_dotenv(find_dotenv())
 
 @lru_cache

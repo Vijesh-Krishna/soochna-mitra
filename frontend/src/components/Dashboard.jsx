@@ -1,24 +1,9 @@
-/**
- * @file Dashboard.jsx
- * @description Interactive dashboard for visualizing MGNREGA expenditure data.
- * Enhanced with accurate crore/lakh display and detailed bilingual tooltips.
- */
-
 import React, { useEffect, useState, useRef } from "react";
 import logo from "../assets/SoochnaMitra_logo.png";
 import api from "../api/client";
 import { motion } from "framer-motion";
 import { MapPin, Info } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip as RechartsTooltip,
-  Legend,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, CartesianGrid, } from "recharts";
 
 export default function Dashboard() {
   const [states, setStates] = useState([]);
@@ -59,7 +44,7 @@ export default function Dashboard() {
     return isNaN(n) ? 0 : n;
   };
 
-  // 🔹 Format currency properly
+  // Format currency properly
   const formatCurrency = (num) => {
     if (!num) return "₹0";
     const value = Number(num);

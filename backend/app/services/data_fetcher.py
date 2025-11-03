@@ -1,4 +1,3 @@
-# backend/app/services/data_fetcher.py
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -19,7 +18,7 @@ def get_session_with_retries(total=3, backoff=1.0):
 def fetch_dataset(state=None, district=None, limit=5000):
     """Fetch dataset from data.gov.in"""
     if not settings.API_KEY or not settings.DATASET_URL:
-        print("❌ Missing API_KEY or DATASET_URL in .env")
+        print("Missing API_KEY or DATASET_URL in .env")
         return []
 
     params = {
@@ -39,9 +38,9 @@ def fetch_dataset(state=None, district=None, limit=5000):
         if district:
             records = [r for r in records if r.get("district_name", "").strip().upper() == district.upper()]
 
-        print(f"✅ Successfully fetched {len(records)} records from API")
+        print(f"Successfully fetched {len(records)} records from API")
         return records
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ API request failed: {e}")
+        print(f"API request failed: {e}")
         return []

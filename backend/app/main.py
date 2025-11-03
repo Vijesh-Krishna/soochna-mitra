@@ -1,4 +1,3 @@
-# backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
@@ -12,12 +11,12 @@ app = FastAPI(title="SoochnaMitra API", version="1.0")
 try:
     Base.metadata.create_all(bind=engine)
 except OperationalError as e:
-    print("❌ Database connection failed:", e)
+    print("Database connection failed:", e)
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ In production, restrict to your frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,4 +28,4 @@ app.include_router(api_router)
 # Root route
 @app.get("/")
 def root():
-    return {"message": "✅ SoochnaMitra backend is running successfully!"}
+    return {"message": "SoochnaMitra backend is running successfully!"}
