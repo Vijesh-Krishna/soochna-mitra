@@ -21,6 +21,9 @@ export default function Dashboard() {
   const [activeTooltip, setActiveTooltip] = useState(null);
   const tooltipRef = useRef(null);
 
+  // NEW: guard so automatic detectLocation runs only once (avoids double prompt in Strict Mode)
+  const initialDetectRunRef = useRef(false);
+
   // close tooltip on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -144,8 +147,12 @@ export default function Dashboard() {
     });
   };
 
+  // CHANGED: only run automatic detect once (prevents duplicate confirm/alert on initial mount)
   useEffect(() => {
-    detectLocation();
+    if (!initialDetectRunRef.current) {
+      initialDetectRunRef.current = true;
+      detectLocation();
+    }
   }, []);
 
   useEffect(() => {
