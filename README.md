@@ -1,29 +1,27 @@
 Soochna Mitra – MGNREGA Insights Dashboard
 
 🧭 Overview
-
-Soochna Mitra is an interactive web application that helps citizens and officials visualize MGNREGA (Mahatma Gandhi National Rural Employment Guarantee Act) data for any state and district in India.
-
+      Soochna Mitra is an interactive web application that helps citizens and officials visualize MGNREGA (Mahatma Gandhi National Rural Employment Guarantee Act) data for any state and district in India.
+      
 It provides a simple interface that highlights how government funds are being utilized — showing total expenditure, families who worked, and person-days generated, with clear explanations and visual charts for better public understanding.
+
 
 🎯 Objectives
 
   - Bridge the information gap between government data and citizens.
-
   - Present complex MGNREGA data in an accessible, meaningful, and visual format.
-
   - Ensure transparency and trust through real-time data updates and tooltips explaining key metrics in both languages.
-
   - Provide fallbacks and resilience, ensuring the app remains usable even if the primary API is unavailable.
+
 
 💡 Key Features
 
 ✅ Auto Location Detection:
       Automatically detects user’s location (State & District) using the browser’s geolocation.
-
+      
 ✅ Manual Selection Fallback:
       If location access fails (e.g., iOS/Apple users), dropdowns and a “Detect My Location” button allow manual access.
-
+      
 ✅ Interactive Charts:
       Shows monthly MGNREGA expenditure trends for the selected district.
 
@@ -35,6 +33,7 @@ It provides a simple interface that highlights how government funds are being ut
 
 ✅ Responsive UI:
     Fully optimized for mobile, tablet, and desktop devices.
+
 
 ⚙️ Tech Stack
 
@@ -61,6 +60,7 @@ cd frontend
 npm install
 npm run dev
 
+
 4. Environment Variables
 
 Create a .env file in backend/:
@@ -74,20 +74,31 @@ DATASET_URL=https://data.gov.in/api/mgnrega
 🚀 Hosting
 
 Backend: Deployed on Render
-
 Frontend: Hosted on Vercel
-
 Uses HTTPS and CORS setup for secure API communication.
+
 
 🔮 Future Advancements
 
-🔹 Dockerization (soon):
-The entire stack (FastAPI, PostgreSQL, Redis, and Frontend) is Docker-ready and can be containerized for smoother deployment and scaling.
+  - Dockerization (soon):
+      The entire stack (FastAPI, PostgreSQL, Redis, and Frontend) is Docker-ready and can be containerized for smoother deployment and scaling.
 
-🔹 Advanced Caching & Monitoring:
-Integrate Grafana for performance insights and Redis TTLs for smart cache refresh.
+  - Advanced Caching & Monitoring:
+      Integrate Grafana for performance insights and Redis TTLs for smart cache refresh.
 
-🔹 Accessibility Enhancements:
-Add voice-based data explanation for visually impaired users.
+  - Accessibility Enhancements:
+      Add voice-based data explanation for visually impaired users.
 
-🤝 Happy to connect and collaborate on projects that make technology more accessible and impactful.
+
+🌍 Impact Statement
+
+Soochna Mitra isn’t just a data dashboard — it’s a step toward **transparent governance**.  
+By visualizing how MGNREGA funds are used across districts, it empowers citizens with the clarity and awareness they deserve.  
+
+---
+
+If this project resonates with you or your organization, I’d love to connect and collaborate on similar **tech-for-social-good** initiatives.
+
+**– Vijesh Krishna**
+[Portfolio](https://vijeshkrishna.netlify.app) | [LinkedIn](https://www.linkedin.com/in/vijesh-krishna/) | [GitHub](https://github.com/Vijesh-Krishna)
+
