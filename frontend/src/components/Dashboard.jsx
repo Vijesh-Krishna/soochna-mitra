@@ -293,6 +293,18 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Introduction Section */}
+      <div className="max-w-2xl text-center mb-8 px-4">
+        <h2 className="text-lg sm:text-xl font-semibold text-indigo-800 mb-2">
+          Welcome to Soochna Mitra
+        </h2>
+        <p className="text-gray-700 text-sm sm:text-base leading-relaxed">
+          This dashboard helps you explore how MGNREGA funds are utilized across different districts of India. 
+          Choose your <strong>State and District</strong> to view 
+          monthly trends in government expenditure, families who worked, and person-days generated.
+        </p>
+      </div>
+
       {/* Filters */}
       <div
         className={`${
