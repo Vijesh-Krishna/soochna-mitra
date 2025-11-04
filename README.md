@@ -83,8 +83,11 @@ DATASET_URL=https://data.gov.in/api/mgnrega
 🚀 Hosting
 
 Backend: Deployed on Render
+
 Frontend: Hosted on Vercel
+
 Uses HTTPS and CORS setup for secure API communication.
+
 
 ---
 
