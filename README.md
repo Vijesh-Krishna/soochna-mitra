@@ -5,6 +5,7 @@ Soochna Mitra – MGNREGA Insights Dashboard
       
 It provides a simple interface that highlights how government funds are being utilized — showing total expenditure, families who worked, and person-days generated, with clear explanations and visual charts for better public understanding.
 
+---
 
 🎯 Objectives
 
@@ -13,6 +14,7 @@ It provides a simple interface that highlights how government funds are being ut
   - Ensure transparency and trust through real-time data updates and tooltips explaining key metrics in both languages.
   - Provide fallbacks and resilience, ensuring the app remains usable even if the primary API is unavailable.
 
+---
 
 💡 Key Features
 
@@ -34,6 +36,7 @@ It provides a simple interface that highlights how government funds are being ut
 ✅ Responsive UI:
     Fully optimized for mobile, tablet, and desktop devices.
 
+---
 
 ⚙️ Tech Stack
 
@@ -49,6 +52,7 @@ Hosting - Render (Backend), Vercel (Frontend)
 
 APIs Used - Government Open Data APIs for MGNREGA
 
+---
 
 🧩 Installation (Local Setup)
 1. Clone the repository
@@ -65,7 +69,6 @@ cd frontend
 npm install
 npm run dev
 
-
 4. Environment Variables
 
 Create a .env file in backend/:
@@ -75,6 +78,7 @@ REDIS_URL=redis://localhost:6379/0
 API_KEY=your_api_key_here
 DATASET_URL=https://data.gov.in/api/mgnrega
 
+---
 
 🚀 Hosting
 
@@ -82,6 +86,7 @@ Backend: Deployed on Render
 Frontend: Hosted on Vercel
 Uses HTTPS and CORS setup for secure API communication.
 
+---
 
 🔮 Future Advancements
 
@@ -94,6 +99,7 @@ Uses HTTPS and CORS setup for secure API communication.
   - Accessibility Enhancements:
       Add voice-based data explanation for visually impaired users.
 
+---
 
 🌍 Impact Statement
 
