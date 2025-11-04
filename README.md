@@ -38,11 +38,16 @@ It provides a simple interface that highlights how government funds are being ut
 ⚙️ Tech Stack
 
 Frontend - React + Vite + TailwindCSS
+
 Backend - FastAPI (Python)
+
 Database - PostgreSQL
-Caching -	Redis
-Hosting	Render (Backend), Vercel (Frontend)
-APIs Used	Government Open Data APIs for MGNREGA
+
+Caching - Redis
+
+Hosting - Render (Backend), Vercel (Frontend)
+
+APIs Used - Government Open Data APIs for MGNREGA
 
 
 🧩 Installation (Local Setup)
