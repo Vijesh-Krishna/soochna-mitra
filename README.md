@@ -74,9 +74,13 @@ npm run dev
 Create a .env file in backend/:
 
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/soochna_db
+
 REDIS_URL=redis://localhost:6379/0
+
 API_KEY=your_api_key_here
+
 DATASET_URL=https://data.gov.in/api/mgnrega
+
 
 ---
 
