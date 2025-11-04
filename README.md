@@ -55,31 +55,36 @@ APIs Used - Government Open Data APIs for MGNREGA
 ---
 
 🧩 Installation (Local Setup)
-1. Clone the repository
-git clone https://github.com/your-username/soochna-mitra.git
-cd soochna-mitra
+1. Clone the repository -
 
-2. Setup Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+      git clone https://github.com/your-username/soochna-mitra.git
 
-3. Setup Frontend
-cd frontend
-npm install
-npm run dev
+      cd soochna-mitra
 
-4. Environment Variables
+2. Setup Backend -
+   
+      cd backend
 
-Create a .env file in backend/:
+      pip install -r requirements.txt
 
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/soochna_db
+      uvicorn app.main:app --reload
 
-REDIS_URL=redis://localhost:6379/0
+3. Setup Frontend - 
+      cd frontend
+      npm install
+      npm run dev
 
-API_KEY=your_api_key_here
+4. Environment Variables -
 
-DATASET_URL=https://data.gov.in/api/mgnrega
+      Create a .env file in backend/:
+
+      DATABASE_URL=postgresql://postgres:postgres@localhost:5432/soochna_db
+
+      REDIS_URL=redis://localhost:6379/0
+
+      API_KEY=your_api_key_here
+
+      DATASET_URL=https://data.gov.in/api/mgnrega
 
 
 ---
