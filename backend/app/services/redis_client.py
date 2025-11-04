@@ -1,8 +1,3 @@
-"""
-redis_client.py — Unified Redis caching using Upstash SDK with fallback
-Handles cloud caching via Upstash REST API and local in-memory fallback
-"""
-
 import os
 import json
 import time
