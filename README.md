@@ -105,9 +105,6 @@ Uses HTTPS and CORS setup for secure API communication.
   - Dockerization (soon):
       The entire stack (FastAPI, PostgreSQL, Redis, and Frontend) is Docker-ready and can be containerized for smoother deployment and scaling.
 
-  - Advanced Caching & Monitoring:
-      Integrate Grafana for performance insights and Redis TTLs for smart cache refresh.
-
   - Accessibility Enhancements:
       Add voice-based data explanation for visually impaired users.
 
