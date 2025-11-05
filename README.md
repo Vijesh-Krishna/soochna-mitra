@@ -3,7 +3,7 @@ Soochna Mitra – MGNREGA Insights Dashboard
 🧭 Overview :-
       Soochna Mitra is an interactive web application that helps citizens and officials visualize MGNREGA (Mahatma Gandhi National Rural Employment Guarantee Act) data for any state and district in India.
       
-It provides a simple interface that highlights how government funds are being utilized — showing total expenditure, families who worked, and person-days generated, with clear explanations and visual charts for better public understanding.
+It provides a simple interface that highlights how government funds are being utilized showing total expenditure, families who worked, and person-days generated, with clear explanations and visual charts for better public understanding.
 
 ---
 
@@ -112,7 +112,7 @@ Uses HTTPS and CORS setup for secure API communication.
 
 🌍 Impact Statement
 
-Soochna Mitra isn’t just a data dashboard — it’s a step toward **transparent governance**.  
+Soochna Mitra isn’t just a data dashboard, it’s a step toward **transparent governance**.  
 By visualizing how MGNREGA funds are used across districts, it empowers citizens with the clarity and awareness they deserve.  
 
 ---
