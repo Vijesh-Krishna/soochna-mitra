@@ -84,7 +84,7 @@ APIs Used - Government Open Data APIs for MGNREGA
 
       API_KEY=your_api_key_here
 
-      DATASET_URL=https://data.gov.in/api/mgnrega
+      DATASET_URL=[https://data.gov.in/api/mgnrega](https://www.data.gov.in/resource/district-wise-mgnrega-data-glance)
 
 
 ---
