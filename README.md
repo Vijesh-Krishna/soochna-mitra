@@ -19,7 +19,7 @@ It provides a simple interface that highlights how government funds are being ut
 💡 Key Features
 
 ✅ Auto Location Detection:
-      Automatically detects user’s location (State & District) using the browser’s geolocation.
+      Automatically detects user’s location (State & District) using the browser’s geolocation. 
       
 ✅ Manual Selection Fallback:
       If location access fails (e.g., iOS/Apple users), dropdowns and a “Detect My Location” button allow manual access.
