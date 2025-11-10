@@ -110,7 +110,7 @@ Uses HTTPS and CORS setup for secure API communication.
 
 ---
 
-🌍 Impact Statement
+Impact Statement
 
 Soochna Mitra isn’t just a data dashboard, it’s a step toward **transparent governance**.  
 By visualizing how MGNREGA funds are used across districts, it empowers citizens with the clarity and awareness they deserve.  
