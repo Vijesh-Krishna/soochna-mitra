@@ -117,6 +117,10 @@ By visualizing how MGNREGA funds are used across districts, it empowers citizens
 
 ---
 
+Currently under maintenance.
+
+---
+
 If this project resonates with you or your organization, I’d love to connect and collaborate on similar **tech-for-social-good** initiatives.
 
 **– Vijesh Krishna**
